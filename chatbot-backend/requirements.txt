@@ -1,0 +1,18 @@
+fastapi==0.115.*
+uvicorn[standard]==0.34.*
+sqlalchemy[asyncio]==2.0.*
+asyncpg==0.30.*
+psycopg2-binary==2.9.*
+pydantic-settings==2.7.*
+redis[hiredis]==5.2.*
+anthropic==0.52.*
+openai==1.76.*
+httpx==0.28.*
+structlog==25.*
+tenacity==9.*
+alembic==1.15.*
+
+# Dev / Test
+pytest==8.*
+pytest-asyncio==0.25.*
+aiosqlite==0.21.*

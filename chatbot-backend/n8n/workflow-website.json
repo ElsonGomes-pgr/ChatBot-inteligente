@@ -1,0 +1,206 @@
+{
+  "name": "Chatbot — Website Chat",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "website-chat",
+        "responseMode": "lastNode",
+        "options": {
+          "rawBody": false
+        }
+      },
+      "id": "node-webhook-website",
+      "name": "Webhook — Website Chat",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "website-chat-webhook",
+      "notes": "URL pública: https://SEU_DOMINIO/webhook/website-chat\nO widget JS faz POST aqui diretamente."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Valida e normaliza o payload do widget de chat\nconst body = $input.first().json.body;\n\nconst required = ['visitor_id', 'text'];\nfor (const field of required) {\n  if (!body[field]) {\n    throw new Error(`Campo obrigatório ausente: ${field}`);\n  }\n}\n\nif (body.text.length > 4096) {\n  throw new Error('Mensagem muito longa');\n}\n\nreturn [{\n  json: {\n    external_user_id: body.visitor_id,\n    channel: 'website',\n    text: body.text.trim(),\n    user_name: body.name || null,\n    user_email: body.email || null,\n    metadata: {\n      page_url: body.page_url || null,\n      user_agent: body.user_agent || null,\n      session_id: body.session_id || null\n    }\n  }\n}];"
+      },
+      "id": "node-validate-payload",
+      "name": "Valida e normaliza payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/api/v1/messages/incoming",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Webhook-Secret",
+              "value": "={{ $env.N8N_WEBHOOK_SECRET }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"external_user_id\": \"{{ $json.external_user_id }}\",\n  \"channel\": \"{{ $json.channel }}\",\n  \"text\": \"{{ $json.text }}\",\n  \"user_name\": {{ $json.user_name ? '\"' + $json.user_name + '\"' : 'null' }},\n  \"user_email\": {{ $json.user_email ? '\"' + $json.user_email + '\"' : 'null' }},\n  \"metadata\": {{ JSON.stringify($json.metadata) }}\n}",
+        "options": {
+          "timeout": 15000,
+          "response": { "response": { "fullResponse": false } }
+        }
+      },
+      "id": "node-call-backend",
+      "name": "Chama Backend Python",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.human_handoff }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "id": "node-check-handoff",
+      "name": "Handoff para humano?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Resposta normal do bot — retorna JSON ao widget\nconst data = $input.first().json;\nreturn [{\n  json: {\n    ok: true,\n    conversation_id: data.conversation_id,\n    message_id: data.message_id,\n    reply: data.reply,\n    intent: data.intent,\n    human_handoff: false,\n    tokens_used: data.tokens_used\n  }\n}];"
+      },
+      "id": "node-format-bot-reply",
+      "name": "Formata resposta do bot",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Resposta de handoff — widget exibe banner de transferência\nconst data = $input.first().json;\nreturn [{\n  json: {\n    ok: true,\n    conversation_id: data.conversation_id,\n    message_id: data.message_id,\n    reply: data.reply,\n    intent: data.intent,\n    human_handoff: true,\n    handoff_message: 'Um agente humano irá continuar seu atendimento em breve. Por favor, aguarde.',\n    tokens_used: data.tokens_used\n  }\n}];"
+      },
+      "id": "node-format-handoff-reply",
+      "name": "Formata resposta de handoff",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Notifica equipe sobre handoff via website\n// Substitua pelo nó Slack, Email, ou Zendesk conforme seu stack\nconst data = $('Chama Backend Python').first().json;\nconsole.log('HANDOFF WEBSITE', JSON.stringify({\n  conversation_id: data.conversation_id,\n  intent: data.intent,\n  urgency_score: data.urgency_score,\n  ts: new Date().toISOString()\n}));\n\n// Exemplo: chamar webhook do Slack\n// await $http.post(process.env.SLACK_WEBHOOK_URL, {\n//   text: `🚨 Handoff solicitado\\nConversa: ${data.conversation_id}\\nUrgência: ${data.urgency_score}`\n// });\n\nreturn $input.all();"
+      },
+      "id": "node-notify-team",
+      "name": "Notifica equipe",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "node-respond-widget",
+      "name": "Responde ao widget",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1560, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "node-respond-widget-handoff",
+      "name": "Responde ao widget (handoff)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1560, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"ok\": false, \"error\": \"Erro interno. Tente novamente.\" }",
+        "options": { "responseCode": 500 }
+      },
+      "id": "node-error-response",
+      "name": "Responde erro ao widget",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [680, 520]
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $input.first().json;\nconsole.error('WEBSITE_CHAT_ERROR', JSON.stringify({\n  error: error.message || 'Unknown error',\n  ts: new Date().toISOString()\n}));\nreturn $input.all();"
+      },
+      "id": "node-log-error",
+      "name": "Loga erro",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 520]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconsole.log(JSON.stringify({\n  event: 'website_chat_processed',\n  conversation_id: data.conversation_id,\n  intent: data.intent,\n  urgency_score: data.urgency_score,\n  tokens_used: data.tokens_used,\n  human_handoff: data.human_handoff,\n  ts: new Date().toISOString()\n}));\nreturn $input.all();"
+      },
+      "id": "node-log-success",
+      "name": "Log de auditoria",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 200]
+    }
+  ],
+  "connections": {
+    "Webhook — Website Chat": {
+      "main": [[{ "node": "Valida e normaliza payload", "type": "main", "index": 0 }]]
+    },
+    "Valida e normaliza payload": {
+      "main": [[{ "node": "Chama Backend Python", "type": "main", "index": 0 }]]
+    },
+    "Chama Backend Python": {
+      "main": [[{ "node": "Handoff para humano?", "type": "main", "index": 0 }]]
+    },
+    "Handoff para humano?": {
+      "main": [
+        [{ "node": "Formata resposta do bot", "type": "main", "index": 0 }],
+        [{ "node": "Formata resposta de handoff", "type": "main", "index": 0 }]
+      ]
+    },
+    "Formata resposta do bot": {
+      "main": [[{ "node": "Log de auditoria", "type": "main", "index": 0 }]]
+    },
+    "Formata resposta de handoff": {
+      "main": [[{ "node": "Notifica equipe", "type": "main", "index": 0 }]]
+    },
+    "Log de auditoria": {
+      "main": [[{ "node": "Responde ao widget", "type": "main", "index": 0 }]]
+    },
+    "Notifica equipe": {
+      "main": [[{ "node": "Responde ao widget (handoff)", "type": "main", "index": 0 }]]
+    },
+    "Loga erro": {
+      "main": [[{ "node": "Responde erro ao widget", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "errorWorkflow": ""
+  },
+  "meta": {
+    "description": "Recebe mensagens do widget de chat do website, processa via backend Python com IA e retorna resposta JSON ao widget. Suporta handoff para humano."
+  }
+}

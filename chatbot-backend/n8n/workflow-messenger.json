@@ -1,0 +1,299 @@
+{
+  "name": "Chatbot — Facebook Messenger",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "messenger",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-webhook-verify",
+      "name": "Webhook — Verificação Meta",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "messenger-webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.query['hub.mode'] }}",
+              "rightValue": "subscribe",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "id": "node-is-verification",
+      "name": "É verificação Meta?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.query['hub.verify_token'] }}",
+              "rightValue": "={{ $env.META_VERIFY_TOKEN }}",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "id": "node-check-verify-token",
+      "name": "Token válido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.query['hub.challenge'] }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "node-respond-challenge",
+      "name": "Responde challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 140]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "Forbidden",
+        "options": { "responseCode": 403 }
+      },
+      "id": "node-respond-forbidden",
+      "name": "Responde 403",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 280]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "messenger",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-webhook-message",
+      "name": "Webhook — Mensagem recebida",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 520],
+      "webhookId": "messenger-webhook"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "EVENT_RECEIVED",
+        "options": { "responseCode": 200 }
+      },
+      "id": "node-respond-ok",
+      "name": "Responde 200 ao Meta",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [460, 520]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrai a primeira mensagem do payload do Messenger\nconst body = $input.first().json.body;\nconst entry = body.entry?.[0];\nconst messaging = entry?.messaging?.[0];\n\nif (!messaging || !messaging.message?.text) {\n  // Ignora eventos sem texto (ex: read, delivery)\n  return [];\n}\n\nconst senderId = messaging.sender.id;\nconst text = messaging.message.text;\nconst timestamp = messaging.timestamp;\n\nreturn [{\n  json: {\n    external_user_id: senderId,\n    channel: 'messenger',\n    text: text,\n    timestamp: timestamp,\n    raw_payload: messaging\n  }\n}];"
+      },
+      "id": "node-extract-message",
+      "name": "Extrai mensagem",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 520]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.text }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            }
+          ]
+        }
+      },
+      "id": "node-has-text",
+      "name": "Tem texto?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 520]
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/api/v1/messages/incoming",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Webhook-Secret",
+              "value": "={{ $env.N8N_WEBHOOK_SECRET }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "external_user_id", "value": "={{ $json.external_user_id }}" },
+            { "name": "channel", "value": "messenger" },
+            { "name": "text", "value": "={{ $json.text }}" }
+          ]
+        },
+        "options": { "timeout": 15000 }
+      },
+      "id": "node-call-backend",
+      "name": "Chama Backend Python",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 460]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.human_handoff }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "id": "node-check-handoff",
+      "name": "Handoff para humano?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1340, 460]
+    },
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v19.0/me/messages",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [{ "name": "access_token", "value": "={{ $env.META_PAGE_ACCESS_TOKEN }}" }]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={\n  \"recipient\": { \"id\": \"{{ $('Extrai mensagem').item.json.external_user_id }}\" },\n  \"message\": { \"text\": \"{{ $('Chama Backend Python').item.json.reply }}\" }\n}",
+        "options": {}
+      },
+      "id": "node-send-reply",
+      "name": "Envia resposta ao Messenger",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 380]
+    },
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v19.0/me/messages",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [{ "name": "access_token", "value": "={{ $env.META_PAGE_ACCESS_TOKEN }}" }]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={\n  \"recipient\": { \"id\": \"{{ $('Extrai mensagem').item.json.external_user_id }}\" },\n  \"message\": { \"text\": \"{{ $('Chama Backend Python').item.json.reply }}\\n\\n⚠️ Um agente humano irá continuar seu atendimento em breve.\" }\n}",
+        "options": {}
+      },
+      "id": "node-send-handoff-msg",
+      "name": "Envia msg de handoff",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 560]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aqui você pode integrar com seu sistema de tickets:\n// Zendesk, Freshdesk, Slack, email, etc.\n// Por enquanto loga o handoff.\nconst data = $input.first().json;\nconsole.log('HANDOFF TRIGGERED', {\n  conversation_id: data.conversation_id,\n  urgency_score: data.urgency_score,\n  intent: data.intent\n});\nreturn $input.all();"
+      },
+      "id": "node-notify-team",
+      "name": "Notifica equipe (Slack/Email)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 560]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log estruturado de cada interação\nconst data = $input.first().json;\nconsole.log(JSON.stringify({\n  event: 'messenger_message_processed',\n  conversation_id: data.conversation_id,\n  intent: data.intent,\n  urgency_score: data.urgency_score,\n  tokens_used: data.tokens_used,\n  human_handoff: data.human_handoff,\n  ts: new Date().toISOString()\n}));\nreturn $input.all();"
+      },
+      "id": "node-log",
+      "name": "Log de auditoria",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 380]
+    }
+  ],
+  "connections": {
+    "Webhook — Verificação Meta": {
+      "main": [[{ "node": "É verificação Meta?", "type": "main", "index": 0 }]]
+    },
+    "É verificação Meta?": {
+      "main": [
+        [{ "node": "Token válido?", "type": "main", "index": 0 }],
+        [{ "node": "Responde 403", "type": "main", "index": 0 }]
+      ]
+    },
+    "Token válido?": {
+      "main": [
+        [{ "node": "Responde challenge", "type": "main", "index": 0 }],
+        [{ "node": "Responde 403", "type": "main", "index": 0 }]
+      ]
+    },
+    "Webhook — Mensagem recebida": {
+      "main": [
+        [
+          { "node": "Responde 200 ao Meta", "type": "main", "index": 0 },
+          { "node": "Extrai mensagem", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Extrai mensagem": {
+      "main": [[{ "node": "Tem texto?", "type": "main", "index": 0 }]]
+    },
+    "Tem texto?": {
+      "main": [
+        [{ "node": "Chama Backend Python", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Chama Backend Python": {
+      "main": [[{ "node": "Handoff para humano?", "type": "main", "index": 0 }]]
+    },
+    "Handoff para humano?": {
+      "main": [
+        [{ "node": "Envia resposta ao Messenger", "type": "main", "index": 0 }],
+        [{ "node": "Envia msg de handoff", "type": "main", "index": 0 }]
+      ]
+    },
+    "Envia resposta ao Messenger": {
+      "main": [[{ "node": "Log de auditoria", "type": "main", "index": 0 }]]
+    },
+    "Envia msg de handoff": {
+      "main": [[{ "node": "Notifica equipe (Slack/Email)", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "meta": {
+    "description": "Recebe mensagens do Facebook Messenger via webhook Meta, processa via backend Python com IA, envia resposta ou escala para humano."
+  }
+}
