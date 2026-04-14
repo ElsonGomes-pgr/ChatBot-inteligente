@@ -1,0 +1,342 @@
+{
+  "name": "Chatbot — WhatsApp (Cloud API)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "whatsapp",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-webhook-verify",
+      "name": "Webhook — Verificação Meta",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "whatsapp-webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.query['hub.mode'] }}",
+              "rightValue": "subscribe",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "id": "node-is-verification",
+      "name": "É verificação Meta?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.query['hub.verify_token'] }}",
+              "rightValue": "={{ $env.META_VERIFY_TOKEN }}",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "id": "node-check-verify-token",
+      "name": "Token válido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.query['hub.challenge'] }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "node-respond-challenge",
+      "name": "Responde challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 140]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "Forbidden",
+        "options": { "responseCode": 403 }
+      },
+      "id": "node-respond-forbidden",
+      "name": "Responde 403",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 280]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-webhook-message",
+      "name": "Webhook — Mensagem recebida",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 560],
+      "webhookId": "whatsapp-webhook"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "EVENT_RECEIVED",
+        "options": { "responseCode": 200 }
+      },
+      "id": "node-respond-ok",
+      "name": "Responde 200 ao Meta",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [460, 560]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrai mensagem do payload WhatsApp Cloud API\nconst body = $input.first().json.body;\nconst entry = body.entry?.[0];\nconst changes = entry?.changes?.[0];\nconst value = changes?.value;\n\n// Ignora status updates (sent, delivered, read)\nif (!value?.messages || value.messages.length === 0) {\n  return [];\n}\n\nconst message = value.messages[0];\nconst contact = value.contacts?.[0];\n\n// Só processa mensagens de texto por enquanto\nif (message.type !== 'text') {\n  return [];\n}\n\nconst senderId = message.from; // Número do remetente (formato: 5511999999999)\nconst text = message.text.body;\nconst contactName = contact?.profile?.name || null;\nconst phoneNumberId = value.metadata?.phone_number_id;\n\nreturn [{\n  json: {\n    external_user_id: `wa_${senderId}`,\n    channel: 'whatsapp',\n    text: text,\n    user_name: contactName,\n    user_phone: senderId,\n    phone_number_id: phoneNumberId,\n    message_id: message.id,\n    timestamp: message.timestamp,\n    raw_payload: message\n  }\n}];"
+      },
+      "id": "node-extract-message",
+      "name": "Extrai mensagem WhatsApp",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 560]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.text }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            }
+          ]
+        }
+      },
+      "id": "node-has-text",
+      "name": "Tem texto?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 560]
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/api/v1/messages/incoming",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Webhook-Secret",
+              "value": "={{ $env.N8N_WEBHOOK_SECRET }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"external_user_id\": \"{{ $json.external_user_id }}\",\n  \"channel\": \"whatsapp\",\n  \"text\": \"{{ $json.text }}\",\n  \"user_name\": \"{{ $json.user_name }}\",\n  \"user_phone\": \"{{ $json.user_phone }}\",\n  \"metadata\": {\n    \"phone_number_id\": \"{{ $json.phone_number_id }}\",\n    \"wa_message_id\": \"{{ $json.message_id }}\"\n  }\n}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "node-call-backend",
+      "name": "Chama Backend Python",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 500]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.human_handoff }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "id": "node-check-handoff",
+      "name": "Handoff para humano?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1340, 500]
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v19.0/{{ $('Extrai mensagem WhatsApp').item.json.phone_number_id }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WHATSAPP_ACCESS_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Extrai mensagem WhatsApp').item.json.user_phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": \"{{ $('Chama Backend Python').item.json.reply }}\"\n  }\n}",
+        "options": {}
+      },
+      "id": "node-send-reply",
+      "name": "Envia resposta WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 420]
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v19.0/{{ $('Extrai mensagem WhatsApp').item.json.phone_number_id }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WHATSAPP_ACCESS_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $('Extrai mensagem WhatsApp').item.json.user_phone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"preview_url\": false,\n    \"body\": \"{{ $('Chama Backend Python').item.json.reply }}\\n\\n⚠️ Um agente humano irá continuar seu atendimento em breve.\"\n  }\n}",
+        "options": {}
+      },
+      "id": "node-send-handoff-msg",
+      "name": "Envia msg de handoff",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconsole.log('WHATSAPP HANDOFF', {\n  conversation_id: data.conversation_id,\n  urgency_score: data.urgency_score,\n  intent: data.intent\n});\nreturn $input.all();"
+      },
+      "id": "node-notify-team",
+      "name": "Notifica equipe (Slack/Email)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconsole.log(JSON.stringify({\n  event: 'whatsapp_message_processed',\n  conversation_id: data.conversation_id,\n  intent: data.intent,\n  urgency_score: data.urgency_score,\n  tokens_used: data.tokens_used,\n  human_handoff: data.human_handoff,\n  ts: new Date().toISOString()\n}));\nreturn $input.all();"
+      },
+      "id": "node-log",
+      "name": "Log de auditoria",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 420]
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v19.0/{{ $('Extrai mensagem WhatsApp').item.json.phone_number_id }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WHATSAPP_ACCESS_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={\n  \"messaging_product\": \"whatsapp\",\n  \"status\": \"read\",\n  \"message_id\": \"{{ $('Extrai mensagem WhatsApp').item.json.message_id }}\"\n}",
+        "options": {}
+      },
+      "id": "node-mark-read",
+      "name": "Marca como lida",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 660]
+    }
+  ],
+  "connections": {
+    "Webhook — Verificação Meta": {
+      "main": [[{ "node": "É verificação Meta?", "type": "main", "index": 0 }]]
+    },
+    "É verificação Meta?": {
+      "main": [
+        [{ "node": "Token válido?", "type": "main", "index": 0 }],
+        [{ "node": "Responde 403", "type": "main", "index": 0 }]
+      ]
+    },
+    "Token válido?": {
+      "main": [
+        [{ "node": "Responde challenge", "type": "main", "index": 0 }],
+        [{ "node": "Responde 403", "type": "main", "index": 0 }]
+      ]
+    },
+    "Webhook — Mensagem recebida": {
+      "main": [
+        [
+          { "node": "Responde 200 ao Meta", "type": "main", "index": 0 },
+          { "node": "Extrai mensagem WhatsApp", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Extrai mensagem WhatsApp": {
+      "main": [[{ "node": "Tem texto?", "type": "main", "index": 0 }]]
+    },
+    "Tem texto?": {
+      "main": [
+        [
+          { "node": "Chama Backend Python", "type": "main", "index": 0 },
+          { "node": "Marca como lida", "type": "main", "index": 0 }
+        ],
+        []
+      ]
+    },
+    "Chama Backend Python": {
+      "main": [[{ "node": "Handoff para humano?", "type": "main", "index": 0 }]]
+    },
+    "Handoff para humano?": {
+      "main": [
+        [{ "node": "Envia resposta WhatsApp", "type": "main", "index": 0 }],
+        [{ "node": "Envia msg de handoff", "type": "main", "index": 0 }]
+      ]
+    },
+    "Envia resposta WhatsApp": {
+      "main": [[{ "node": "Log de auditoria", "type": "main", "index": 0 }]]
+    },
+    "Envia msg de handoff": {
+      "main": [[{ "node": "Notifica equipe (Slack/Email)", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "meta": {
+    "description": "Recebe mensagens do WhatsApp via Cloud API webhook, processa via backend Python com IA, envia resposta ou escala para humano. Inclui mark-as-read automático."
+  }
+}

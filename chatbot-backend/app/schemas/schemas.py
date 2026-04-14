@@ -26,3 +26,18 @@ class AgentReply(BaseModel):
     """Mensagem enviada pelo agente humano de volta ao usuário."""
     text: str = Field(..., min_length=1, max_length=4000)
     agent_id: str = Field(..., description="ID do agente (Slack user ID ou interno)")
+
+
+class FeedbackCreate(BaseModel):
+    """Feedback enviado pelo usuário ao final do atendimento."""
+    rating: int = Field(..., ge=1, le=5, description="CSAT 1-5")
+    comment: str | None = Field(None, max_length=2000)
+
+
+class FeedbackResponse(BaseModel):
+    id: str
+    conversation_id: str
+    rating: int
+    comment: str | None
+    resolved_by: str | None
+    created_at: str

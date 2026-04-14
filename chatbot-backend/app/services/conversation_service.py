@@ -161,8 +161,15 @@ class ConversationService:
         await self.cache.set_human_mode(str(conversation.id), agent_id)
 
     async def close_conversation(self, conversation: Conversation) -> None:
+        now = datetime.now(UTC)
         conversation.status = ConversationStatusEnum.closed
-        conversation.closed_at = datetime.now(UTC)
+        conversation.closed_at = now
+        if conversation.started_at:
+            started = conversation.started_at
+            # Garante timezone-aware (SQLite retorna naive)
+            if started.tzinfo is None:
+                started = started.replace(tzinfo=UTC)
+            conversation.duration_seconds = int((now - started).total_seconds())
         await self.cache.delete(str(conversation.id))
 
     # ── Verificação de human_mode ──────────────────────────────────────────

@@ -9,7 +9,7 @@ from app.core.security import RateLimitMiddleware
 from app.core.tasks import background_tasks
 from app.db.database import get_engine
 from app.models.models import Base
-from app.api.routes import messages, conversations, health, slack
+from app.api.routes import messages, conversations, health, slack, feedback
 
 settings = get_settings()
 logger = structlog.get_logger()
@@ -58,3 +58,4 @@ app.include_router(health.router)
 app.include_router(messages.router, prefix="/api/v1")
 app.include_router(conversations.router, prefix="/api/v1")
 app.include_router(slack.router, prefix="/api/v1")
+app.include_router(feedback.router, prefix="/api/v1")
