@@ -175,6 +175,47 @@ async def test_agent_reply_empty_text_rejected(client):
     assert response.status_code == 422
 
 
+async def test_agent_reply_invalid_agent_id_rejected(client):
+    """agent_id com caracteres especiais deve ser rejeitado."""
+    conv_id = await _create_handoff_conversation(client)
+    response = await client.post(
+        f"/api/v1/conversations/{conv_id}/reply",
+        json={"text": "Olá", "agent_id": "agent; DROP TABLE"},
+        headers=API_KEY_HEADERS,
+    )
+    assert response.status_code == 422
+
+
+async def test_agent_reply_wrong_agent_rejected(client):
+    """Agente diferente do atribuído não pode responder."""
+    conv_id = await _create_handoff_conversation(client)
+
+    # Primeiro, atribui um agente via Slack action simulation
+    # O handoff atribui "pending" como agent_id inicial
+    # Simulamos que o agente "U_AGENT_REAL" assumiu via Slack
+    from sqlalchemy import select, update
+    from app.models.models import Conversation
+    import uuid
+
+    # Atualiza diretamente no DB para simular Slack assignment
+    from tests.conftest import TestSessionLocal
+    async with TestSessionLocal() as session:
+        await session.execute(
+            update(Conversation)
+            .where(Conversation.id == uuid.UUID(conv_id))
+            .values(assigned_agent_id="U_AGENT_REAL")
+        )
+        await session.commit()
+
+    response = await client.post(
+        f"/api/v1/conversations/{conv_id}/reply",
+        json={"text": "Sou outro agente", "agent_id": "U_IMPOSTOR"},
+        headers=API_KEY_HEADERS,
+    )
+    assert response.status_code == 403
+    assert "atribuído" in response.json()["detail"]
+
+
 # ── Close ──────────────────────────────────────────────────────────────────
 
 async def test_close_conversation(client):

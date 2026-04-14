@@ -11,6 +11,7 @@ httpx==0.28.*
 structlog==25.*
 tenacity==9.*
 alembic==1.15.*
+sentry-sdk[fastapi]==2.*
 
 # Dev / Test
 pytest==8.*

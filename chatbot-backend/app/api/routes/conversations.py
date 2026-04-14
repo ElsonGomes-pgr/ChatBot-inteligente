@@ -10,7 +10,7 @@ from app.core.security import verify_api_key, verify_webhook_secret
 from app.core.tasks import create_tracked_task
 from app.db.database import get_db
 from app.db.redis_client import get_redis, SessionCache
-from app.models.models import Conversation, ConversationStatusEnum, MessageRoleEnum
+from app.models.models import Conversation, ConversationStatusEnum, MessageRoleEnum, User
 from app.schemas.schemas import AgentReply
 from app.services.conversation_service import ConversationService
 from app.services.n8n_callback import N8nCallbackService
@@ -197,6 +197,21 @@ async def agent_reply(
     if not conversation.human_mode:
         raise HTTPException(status_code=400, detail="Conversa não está em modo humano")
 
+    # Valida que o agente está atribuído a esta conversa
+    if conversation.assigned_agent_id and conversation.assigned_agent_id != body.agent_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Este agente não está atribuído a esta conversa",
+        )
+
+    # Busca o external_id do usuário para entregar no canal correto
+    user_result = await db.execute(
+        select(User).where(User.id == conversation.user_id)
+    )
+    user = user_result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+
     # Salva mensagem do agente
     agent_msg = await svc.add_message(
         conversation.id,
@@ -215,7 +230,7 @@ async def agent_reply(
             channel=conversation.channel.value,
             text=body.text,
             agent_id=body.agent_id,
-            external_user_id=str(conversation.user_id),
+            external_user_id=user.external_id,
         )
     )
 

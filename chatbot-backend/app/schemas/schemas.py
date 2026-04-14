@@ -25,4 +25,5 @@ class BotResponse(BaseModel):
 class AgentReply(BaseModel):
     """Mensagem enviada pelo agente humano de volta ao usuário."""
     text: str = Field(..., min_length=1, max_length=4000)
-    agent_id: str = Field(..., description="ID do agente (Slack user ID ou interno)")
+    agent_id: str = Field(..., min_length=1, max_length=255, pattern=r"^[a-zA-Z0-9_\-\.]+$",
+                          description="ID do agente (Slack user ID ou interno)")

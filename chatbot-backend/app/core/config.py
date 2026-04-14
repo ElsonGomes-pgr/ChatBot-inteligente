@@ -53,6 +53,13 @@ class Settings(BaseSettings):
     # URL publica da API (usada em links do Slack)
     app_base_url: str = "http://localhost:8000"
 
+    # Origens CORS permitidas em produção (separadas por vírgula)
+    cors_allowed_origins: str = ""
+
+    # Sentry
+    sentry_dsn: str = ""
+    sentry_traces_sample_rate: float = 0.1
+
 
 @lru_cache
 def get_settings() -> Settings:

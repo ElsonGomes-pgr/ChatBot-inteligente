@@ -126,10 +126,17 @@ class AIService:
             return result
 
         except (ValidationError, json.JSONDecodeError) as e:
-            logger.warning("intent_classification_parse_error", error=str(e))
+            logger.warning("intent_classification_parse_error",
+                           error=str(e),
+                           error_type=type(e).__name__,
+                           message_preview=user_message[:100])
             return ClassificationResult().model_dump()
         except Exception as e:
-            logger.error("intent_classification_failed", error=str(e))
+            logger.error("intent_classification_failed",
+                         error=str(e),
+                         error_type=type(e).__name__,
+                         provider=self.provider,
+                         message_preview=user_message[:100])
             return ClassificationResult().model_dump()
 
     @retry(**_RETRY_POLICY)

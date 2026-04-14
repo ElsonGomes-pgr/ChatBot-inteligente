@@ -28,12 +28,14 @@ class TimeoutService:
     async def close_stale_conversations(self) -> int:
         """
         Fecha conversas que não tiveram atividade nos últimos N minutos.
+        Conversas em human_mode usam o dobro do timeout (agentes precisam de mais tempo).
         Retorna quantidade de conversas fechadas.
         """
         cutoff = datetime.now(UTC) - timedelta(minutes=settings.conversation_timeout_minutes)
+        human_cutoff = datetime.now(UTC) - timedelta(minutes=settings.conversation_timeout_minutes * 2)
 
-        # Busca conversas ativas cuja última mensagem é anterior ao cutoff
-        stale_query = (
+        # Conversas ativas/waiting com timeout normal
+        bot_stale = (
             select(Conversation.id)
             .where(
                 and_(
@@ -49,6 +51,23 @@ class TimeoutService:
                 )
             )
         )
+
+        # Conversas em human_mode com timeout maior
+        human_stale = (
+            select(Conversation.id)
+            .where(
+                and_(
+                    Conversation.status == ConversationStatusEnum.human_mode,
+                    ~Conversation.id.in_(
+                        select(Message.conversation_id)
+                        .where(Message.created_at > human_cutoff)
+                        .distinct()
+                    ),
+                )
+            )
+        )
+
+        stale_query = bot_stale.union(human_stale)
 
         result = await self.db.execute(stale_query)
         stale_ids = [row[0] for row in result.all()]
