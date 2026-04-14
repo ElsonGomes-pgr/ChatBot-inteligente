@@ -17,3 +17,4 @@ sentry-sdk[fastapi]==2.*
 pytest==8.*
 pytest-asyncio==0.25.*
 aiosqlite==0.21.*
+ruff==0.9.*
