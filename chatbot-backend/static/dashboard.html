@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chatbot Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0f0f13;
+      --surface:   #18181f;
+      --border:    #2a2a35;
+      --accent:    #7c6ff7;
+      --accent2:   #5b52e0;
+      --green:     #22c55e;
+      --yellow:    #eab308;
+      --orange:    #f97316;
+      --red:       #ef4444;
+      --text:      #f1f1f5;
+      --muted:     #7b7b8e;
+      --radius:    12px;
+    }
+
+    body {
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: grid;
+      grid-template-rows: 56px 1fr;
+      grid-template-columns: 280px 1fr 300px;
+      grid-template-areas:
+        "header header header"
+        "sidebar chat details";
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      grid-area: header;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+    }
+    .logo { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+    .logo span { color: var(--accent); }
+    .header-right { display: flex; align-items: center; gap: 20px; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+    .header-metrics { display: flex; gap: 20px; }
+    .hm { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+    .hm strong { color: var(--text); font-weight: 600; }
+
+    /* ── Sidebar ── */
+    aside {
+      grid-area: sidebar;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .sidebar-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .sidebar-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); }
+    .filter-tabs { display: flex; gap: 4px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+    .tab {
+      flex: 1; text-align: center; padding: 6px 4px; border-radius: 8px;
+      font-size: 12px; font-weight: 600; cursor: pointer;
+      background: transparent; border: 1px solid var(--border);
+      color: var(--muted); transition: all .15s;
+    }
+    .tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .conv-list { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 4px; }
+    .conv-list::-webkit-scrollbar { width: 4px; }
+    .conv-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .conv-item {
+      padding: 12px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all .15s;
+    }
+    .conv-item:hover { background: rgba(124,111,247,.08); border-color: var(--border); }
+    .conv-item.active { background: rgba(124,111,247,.15); border-color: var(--accent); }
+    .conv-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+    .conv-name { font-size: 14px; font-weight: 600; }
+    .conv-time { font-size: 11px; color: var(--muted); }
+    .conv-preview { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 6px; }
+    .conv-tags { display: flex; gap: 4px; align-items: center; }
+    .tag {
+      font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 20px;
+    }
+    .tag-channel  { background: rgba(124,111,247,.2); color: var(--accent); }
+    .tag-support  { background: rgba(59,130,246,.2); color: #60a5fa; }
+    .tag-sales    { background: rgba(34,197,94,.2); color: #4ade80; }
+    .tag-question { background: rgba(234,179,8,.2); color: #facc15; }
+    .tag-urgency  { background: rgba(239,68,68,.2); color: #f87171; }
+    .tag-unknown  { background: rgba(107,114,128,.2); color: #9ca3af; }
+    .urgency-bar {
+      height: 3px; border-radius: 2px; margin-top: 6px;
+      background: var(--border); overflow: hidden;
+    }
+    .urgency-fill { height: 100%; border-radius: 2px; transition: width .3s; }
+
+    /* ── Chat ── */
+    .chat-area {
+      grid-area: chat;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .chat-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface);
+    }
+    .chat-header-left h2 { font-size: 16px; font-weight: 700; }
+    .chat-header-left p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .chat-actions { display: flex; gap: 8px; }
+    .btn {
+      padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 600;
+      cursor: pointer; border: none; transition: all .15s; font-family: inherit;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent2); }
+    .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+    .btn-ghost:hover { color: var(--text); border-color: var(--text); }
+    .btn-danger { background: rgba(239,68,68,.15); border: 1px solid rgba(239,68,68,.3); color: #f87171; }
+    .btn-danger:hover { background: rgba(239,68,68,.25); }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .messages::-webkit-scrollbar { width: 4px; }
+    .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .empty-state {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      color: var(--muted); gap: 12px;
+    }
+    .empty-icon { font-size: 40px; opacity: .4; }
+    .empty-state p { font-size: 14px; }
+
+    .msg { display: flex; gap: 10px; max-width: 75%; }
+    .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+    .msg.bot  { align-self: flex-start; }
+    .msg.agent { align-self: flex-end; flex-direction: row-reverse; }
+
+    .msg-avatar {
+      width: 30px; height: 30px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700; flex-shrink: 0;
+    }
+    .msg.user  .msg-avatar { background: rgba(124,111,247,.25); color: var(--accent); }
+    .msg.bot   .msg-avatar { background: rgba(34,197,94,.2); color: var(--green); }
+    .msg.agent .msg-avatar { background: rgba(249,115,22,.2); color: var(--orange); }
+
+    .msg-bubble {
+      padding: 10px 14px; border-radius: 14px; font-size: 14px; line-height: 1.55;
+    }
+    .msg.user  .msg-bubble { background: rgba(124,111,247,.2); border-bottom-right-radius: 4px; }
+    .msg.bot   .msg-bubble { background: var(--surface); border-bottom-left-radius: 4px; border: 1px solid var(--border); }
+    .msg.agent .msg-bubble { background: rgba(249,115,22,.15); border-bottom-right-radius: 4px; border: 1px solid rgba(249,115,22,.3); }
+    .msg-time { font-size: 10px; color: var(--muted); margin-top: 4px; text-align: right; }
+
+    .reply-box {
+      padding: 14px 20px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+    .reply-input {
+      flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+      padding: 10px 14px; color: var(--text); font-family: inherit; font-size: 14px;
+      resize: none; outline: none; max-height: 100px; line-height: 1.5;
+      transition: border-color .15s;
+    }
+    .reply-input:focus { border-color: var(--accent); }
+    .reply-input::placeholder { color: var(--muted); }
+    .reply-input:disabled { opacity: .4; }
+    .btn-send {
+      width: 40px; height: 40px; border-radius: 10px; border: none;
+      background: var(--accent); color: #fff; cursor: pointer; font-size: 18px;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .15s; flex-shrink: 0;
+    }
+    .btn-send:hover { background: var(--accent2); }
+    .btn-send:disabled { opacity: .4; cursor: not-allowed; }
+
+    /* ── Details ── */
+    .details {
+      grid-area: details;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .details::-webkit-scrollbar { width: 4px; }
+    .details::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .detail-section h3 {
+      font-size: 12px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.6px; color: var(--muted); margin-bottom: 12px;
+    }
+    .detail-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .detail-label { font-size: 13px; color: var(--muted); }
+    .detail-value { font-size: 13px; font-weight: 600; text-align: right; max-width: 55%; word-break: break-all; }
+
+    .metric-card {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 14px;
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .metric-card .metric-label { font-size: 12px; color: var(--muted); font-weight: 500; }
+    .metric-card .metric-value { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
+    .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    .urgency-gauge { margin-top: 4px; }
+    .urgency-number { font-size: 28px; font-weight: 700; letter-spacing: -1px; }
+    .urgency-track { height: 6px; border-radius: 3px; background: var(--border); margin-top: 8px; overflow: hidden; }
+    .urgency-track-fill { height: 100%; border-radius: 3px; transition: width .5s; }
+
+    .agent-id-input {
+      width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+      padding: 8px 12px; color: var(--text); font-family: inherit; font-size: 13px;
+      outline: none; transition: border-color .15s;
+    }
+    .agent-id-input:focus { border-color: var(--accent); }
+
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: #1e1e2a; border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px 20px; font-size: 14px; font-weight: 500;
+      box-shadow: 0 8px 24px rgba(0,0,0,.4); z-index: 1000;
+      animation: slideUp .25s ease;
+    }
+    .toast.success { border-color: var(--green); color: var(--green); }
+    .toast.error   { border-color: var(--red); color: #f87171; }
+    @keyframes slideUp { from { opacity:0; transform: translateX(-50%) translateY(10px); } }
+
+    .loader { display: flex; gap: 4px; align-items: center; padding: 8px 0; }
+    .loader span { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: bounce .8s infinite; }
+    .loader span:nth-child(2) { animation-delay: .12s; }
+    .loader span:nth-child(3) { animation-delay: .24s; }
+    @keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-5px)} }
+
+    .badge-human { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; background: rgba(249,115,22,.15); border: 1px solid rgba(249,115,22,.3); color: var(--orange); }
+    .badge-active { background: rgba(34,197,94,.15); border: 1px solid rgba(34,197,94,.3); color: var(--green); }
+
+    .no-conv { color: var(--muted); font-size: 13px; text-align: center; padding: 20px 0; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Chat<span>Bot</span> Dashboard</div>
+  <div class="header-metrics" id="headerMetrics">
+    <div class="hm"><span>Conversas hoje</span><strong id="hm-total">—</strong></div>
+    <div class="hm"><span>Em espera</span><strong id="hm-waiting">—</strong></div>
+    <div class="hm"><span>Handoffs</span><strong id="hm-handoff">—</strong></div>
+    <div class="hm"><span>Taxa handoff</span><strong id="hm-rate">—</strong></div>
+  </div>
+  <div class="header-right">
+    <div class="status-dot" title="Online"></div>
+    <div id="agentIdWrap" style="display:flex;align-items:center;gap:8px;">
+      <span style="font-size:13px;color:var(--muted)">Agente:</span>
+      <input id="agentIdField" class="agent-id-input" style="width:130px" placeholder="teu ID" />
+    </div>
+  </div>
+</header>
+
+<aside>
+  <div class="sidebar-header">
+    <span class="sidebar-title">Conversas</span>
+    <button class="btn btn-ghost" style="padding:4px 8px;font-size:12px;" onclick="loadConversations()">↻</button>
+  </div>
+  <div class="filter-tabs">
+    <button class="tab active" onclick="setFilter('all', this)">Todas</button>
+    <button class="tab" onclick="setFilter('human_mode', this)">🔴 Handoff</button>
+    <button class="tab" onclick="setFilter('active', this)">Ativas</button>
+    <button class="tab" onclick="setFilter('closed', this)">Fechadas</button>
+  </div>
+  <div class="conv-list" id="convList">
+    <div class="no-conv">A carregar…</div>
+  </div>
+</aside>
+
+<main class="chat-area">
+  <div class="chat-header" id="chatHeader">
+    <div class="chat-header-left">
+      <h2>Seleciona uma conversa</h2>
+      <p>Escolhe à esquerda para começar</p>
+    </div>
+    <div class="chat-actions" id="chatActions" style="display:none">
+      <button class="btn btn-danger" id="btnClose" onclick="closeConversation()">Fechar</button>
+    </div>
+  </div>
+
+  <div class="messages" id="messages">
+    <div class="empty-state">
+      <div class="empty-icon">💬</div>
+      <p>Nenhuma conversa selecionada</p>
+    </div>
+  </div>
+
+  <div class="reply-box">
+    <textarea id="replyInput" class="reply-input" rows="1"
+      placeholder="Escreve uma resposta…" disabled
+      oninput="autoResize(this)"
+      onkeydown="handleKey(event)"></textarea>
+    <button id="btnSend" class="btn-send" onclick="sendReply()" disabled title="Enviar (Enter)">➤</button>
+  </div>
+</main>
+
+<aside class="details" id="detailsPanel">
+  <div class="no-conv" style="margin:auto">Seleciona uma conversa para ver os detalhes</div>
+</aside>
+
+<script>
+// ─── Config ───────────────────────────────────────────────────────────────────
+const API = '';          // vazio = mesma origem; ou 'http://localhost:8000'
+const API_KEY = localStorage.getItem('api_key') || promptApiKey();
+const REFRESH_MS = 8000; // auto-refresh das conversas
+
+function promptApiKey() {
+  const k = prompt('Introduz a tua API Key:');
+  if (k) localStorage.setItem('api_key', k);
+  return k || '';
+}
+
+const headers = { 'X-API-Key': API_KEY, 'Content-Type': 'application/json' };
+
+// ─── Estado ───────────────────────────────────────────────────────────────────
+let activeConvId = null;
+let activeConv   = null;
+let filterStatus = 'all';
+let refreshTimer = null;
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  loadMetrics();
+  loadConversations();
+  startAutoRefresh();
+
+  document.getElementById('agentIdField').value =
+    localStorage.getItem('agent_id') || '';
+  document.getElementById('agentIdField').addEventListener('change', e => {
+    localStorage.setItem('agent_id', e.target.value.trim());
+  });
+});
+
+function startAutoRefresh() {
+  clearInterval(refreshTimer);
+  refreshTimer = setInterval(() => {
+    loadConversations(true);
+    if (activeConvId) loadConversationDetail(activeConvId, true);
+    loadMetrics();
+  }, REFRESH_MS);
+}
+
+// ─── Métricas do header ───────────────────────────────────────────────────────
+async function loadMetrics() {
+  try {
+    const r = await fetch(`${API}/api/v1/metrics?hours=24`, { headers });
+    if (!r.ok) return;
+    const d = await r.json();
+    document.getElementById('hm-total').textContent    = d.conversations.total;
+    document.getElementById('hm-waiting').textContent  = d.conversations.by_status?.human_mode ?? 0;
+    document.getElementById('hm-handoff').textContent  = d.conversations.by_status?.human_mode ?? 0;
+    document.getElementById('hm-rate').textContent     = d.conversations.handoff_rate_percent + '%';
+  } catch {}
+}
+
+// ─── Lista de conversas ───────────────────────────────────────────────────────
+async function loadConversations(silent = false) {
+  const list = document.getElementById('convList');
+  if (!silent) list.innerHTML = '<div class="no-conv">A carregar…</div>';
+
+  const url = filterStatus === 'all'
+    ? `${API}/api/v1/conversations/?limit=80`
+    : `${API}/api/v1/conversations/?status=${filterStatus}&limit=80`;
+
+  try {
+    const r = await fetch(url, { headers });
+    if (!r.ok) { showToast('Erro ao carregar conversas', 'error'); return; }
+    const data = await r.json();
+
+    if (!data.length) {
+      list.innerHTML = '<div class="no-conv">Nenhuma conversa</div>';
+      return;
+    }
+
+    list.innerHTML = '';
+    data.forEach(c => list.appendChild(buildConvItem(c)));
+  } catch (e) {
+    list.innerHTML = '<div class="no-conv">Sem ligação à API</div>';
+  }
+}
+
+function buildConvItem(c) {
+  const el = document.createElement('div');
+  el.className = 'conv-item' + (c.id === activeConvId ? ' active' : '');
+  el.dataset.id = c.id;
+  el.onclick = () => selectConversation(c.id);
+
+  const score  = c.urgency_score ?? 0;
+  const color  = urgencyColor(score);
+  const intent = c.intent || 'unknown';
+  const time   = c.started_at ? relativeTime(c.started_at) : '';
+
+  el.innerHTML = `
+    <div class="conv-top">
+      <span class="conv-name">${escHtml(c.channel.toUpperCase())} #${c.id.slice(0,6)}</span>
+      <span class="conv-time">${time}</span>
+    </div>
+    <div class="conv-preview">${c.human_mode ? '🔴 Aguarda agente humano' : intent}</div>
+    <div class="conv-tags">
+      <span class="tag tag-channel">${c.channel}</span>
+      <span class="tag tag-${intent}">${intent}</span>
+      ${c.human_mode ? '<span class="badge-human">Handoff</span>' : ''}
+    </div>
+    <div class="urgency-bar">
+      <div class="urgency-fill" style="width:${score*100}%;background:${color}"></div>
+    </div>
+  `;
+  return el;
+}
+
+function setFilter(status, btn) {
+  filterStatus = status;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  loadConversations();
+}
+
+// ─── Detalhe da conversa ──────────────────────────────────────────────────────
+async function selectConversation(id) {
+  activeConvId = id;
+  document.querySelectorAll('.conv-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.id === id);
+  });
+  await loadConversationDetail(id);
+}
+
+async function loadConversationDetail(id, silent = false) {
+  const msgs = document.getElementById('messages');
+  if (!silent) msgs.innerHTML = '<div class="loader"><span></span><span></span><span></span></div>';
+
+  try {
+    const r = await fetch(`${API}/api/v1/conversations/${id}`, { headers });
+    if (!r.ok) { showToast('Erro ao carregar conversa', 'error'); return; }
+    activeConv = await r.json();
+
+    renderChat(activeConv);
+    renderDetails(activeConv);
+    enableReply(activeConv);
+  } catch {
+    msgs.innerHTML = '<div class="empty-state"><p>Erro ao carregar</p></div>';
+  }
+}
+
+function renderChat(conv) {
+  const msgs = document.getElementById('messages');
+  const header = document.getElementById('chatHeader');
+
+  header.querySelector('h2').textContent = `${conv.channel.toUpperCase()} · #${conv.id.slice(0,8)}`;
+  header.querySelector('p').innerHTML = `
+    Status: <strong style="color:${conv.human_mode ? 'var(--orange)' : 'var(--green)'}">
+      ${conv.human_mode ? 'Aguarda agente' : conv.status}
+    </strong>
+    ${conv.assigned_agent_id ? `· Agente: <strong>${conv.assigned_agent_id}</strong>` : ''}
+  `;
+
+  document.getElementById('chatActions').style.display = conv.status !== 'closed' ? 'flex' : 'none';
+
+  if (!conv.messages?.length) {
+    msgs.innerHTML = '<div class="empty-state"><div class="empty-icon">💬</div><p>Sem mensagens</p></div>';
+    return;
+  }
+
+  const scrolledToBottom = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 80;
+
+  msgs.innerHTML = '';
+  conv.messages.forEach(m => msgs.appendChild(buildMessage(m)));
+
+  if (scrolledToBottom || !document.querySelector('.msg')) {
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+}
+
+function buildMessage(m) {
+  const wrap = document.createElement('div');
+  wrap.className = `msg ${m.role}`;
+
+  const avatarChar = { user: 'U', bot: 'B', agent: 'A' }[m.role] || '?';
+  const time = m.created_at ? new Date(m.created_at).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }) : '';
+
+  wrap.innerHTML = `
+    <div class="msg-avatar">${avatarChar}</div>
+    <div>
+      <div class="msg-bubble">${escHtml(m.content)}</div>
+      <div class="msg-time">${time}</div>
+    </div>
+  `;
+  return wrap;
+}
+
+function renderDetails(conv) {
+  const panel = document.getElementById('detailsPanel');
+  const score = conv.urgency_score ?? 0;
+  const color = urgencyColor(score);
+  const label = urgencyLabel(score);
+  const msgCount = conv.messages?.length ?? 0;
+  const botCount = conv.messages?.filter(m => m.role === 'bot').length ?? 0;
+  const userCount = conv.messages?.filter(m => m.role === 'user').length ?? 0;
+  const tokens = conv.messages?.reduce((s, m) => s + (m.tokens_used || 0), 0) ?? 0;
+
+  panel.innerHTML = `
+    <div class="detail-section">
+      <h3>Conversa</h3>
+      <div class="detail-row"><span class="detail-label">ID</span><span class="detail-value" style="font-family:monospace;font-size:11px">${conv.id}</span></div>
+      <div class="detail-row"><span class="detail-label">Canal</span><span class="detail-value">${conv.channel}</span></div>
+      <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">${conv.status}</span></div>
+      <div class="detail-row"><span class="detail-label">Intenção</span><span class="detail-value">${conv.intent || '—'}</span></div>
+      <div class="detail-row"><span class="detail-label">Início</span><span class="detail-value">${conv.started_at ? new Date(conv.started_at).toLocaleString('pt-BR') : '—'}</span></div>
+      ${conv.closed_at ? `<div class="detail-row"><span class="detail-label">Encerrada</span><span class="detail-value">${new Date(conv.closed_at).toLocaleString('pt-BR')}</span></div>` : ''}
+    </div>
+
+    <div class="detail-section">
+      <h3>Urgência</h3>
+      <div class="urgency-gauge">
+        <div class="urgency-number" style="color:${color}">${(score * 100).toFixed(0)}<span style="font-size:14px;color:var(--muted)">%</span></div>
+        <div style="font-size:12px;color:${color};font-weight:600;margin:2px 0 6px">${label}</div>
+        <div class="urgency-track">
+          <div class="urgency-track-fill" style="width:${score*100}%;background:${color}"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <h3>Estatísticas</h3>
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <span class="metric-label">Mensagens</span>
+          <span class="metric-value">${msgCount}</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Do utilizador</span>
+          <span class="metric-value">${userCount}</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Do bot</span>
+          <span class="metric-value">${botCount}</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Tokens</span>
+          <span class="metric-value">${tokens}</span>
+        </div>
+      </div>
+    </div>
+
+    ${conv.assigned_agent_id ? `
+    <div class="detail-section">
+      <h3>Agente Atribuído</h3>
+      <div class="detail-row"><span class="detail-label">ID</span><span class="detail-value">${escHtml(conv.assigned_agent_id)}</span></div>
+    </div>` : ''}
+  `;
+}
+
+function enableReply(conv) {
+  const input  = document.getElementById('replyInput');
+  const btn    = document.getElementById('btnSend');
+  const canReply = conv.human_mode && conv.status !== 'closed';
+
+  input.disabled = !canReply;
+  btn.disabled   = !canReply;
+  input.placeholder = canReply
+    ? 'Escreve a resposta para o cliente…'
+    : conv.status === 'closed' ? 'Conversa encerrada' : 'Só podes responder em modo humano';
+}
+
+// ─── Responder ────────────────────────────────────────────────────────────────
+async function sendReply() {
+  const input   = document.getElementById('replyInput');
+  const text    = input.value.trim();
+  const agentId = (document.getElementById('agentIdField').value.trim() || 'agent_dashboard');
+
+  if (!text || !activeConvId) return;
+
+  input.disabled = true;
+  document.getElementById('btnSend').disabled = true;
+
+  try {
+    const r = await fetch(`${API}/api/v1/conversations/${activeConvId}/reply`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ text, agent_id: agentId }),
+    });
+
+    if (!r.ok) {
+      const err = await r.json();
+      showToast(err.detail || 'Erro ao enviar', 'error');
+    } else {
+      input.value = '';
+      input.style.height = 'auto';
+      showToast('Mensagem enviada', 'success');
+      await loadConversationDetail(activeConvId);
+    }
+  } catch {
+    showToast('Sem ligação à API', 'error');
+  } finally {
+    input.disabled = false;
+    document.getElementById('btnSend').disabled = false;
+    input.focus();
+  }
+}
+
+async function closeConversation() {
+  if (!activeConvId) return;
+  if (!confirm('Fechar esta conversa?')) return;
+
+  const r = await fetch(`${API}/api/v1/conversations/${activeConvId}/close`, {
+    method: 'POST', headers,
+  });
+  if (r.ok) {
+    showToast('Conversa fechada', 'success');
+    await loadConversations();
+    await loadConversationDetail(activeConvId);
+  } else {
+    showToast('Erro ao fechar', 'error');
+  }
+}
+
+// ─── Utils ────────────────────────────────────────────────────────────────────
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendReply();
+  }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+  document.getElementById('btnSend').disabled = !el.value.trim();
+}
+
+function urgencyColor(s) {
+  if (s >= 0.75) return 'var(--red)';
+  if (s >= 0.6)  return 'var(--orange)';
+  if (s >= 0.3)  return 'var(--yellow)';
+  return 'var(--green)';
+}
+
+function urgencyLabel(s) {
+  if (s >= 0.75) return 'Crítica';
+  if (s >= 0.6)  return 'Alta';
+  if (s >= 0.3)  return 'Média';
+  return 'Baixa';
+}
+
+function relativeTime(iso) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1)  return 'agora';
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.floor(h/24)}d`;
+}
+
+function escHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+let toastTimer;
+function showToast(msg, type = 'success') {
+  clearTimeout(toastTimer);
+  document.querySelectorAll('.toast').forEach(t => t.remove());
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  toastTimer = setTimeout(() => t.remove(), 3000);
+}
+</script>
+</body>
+</html>
